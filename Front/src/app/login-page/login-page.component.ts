@@ -20,14 +20,18 @@ import { ClientServiceService } from '../client-service.service';
   styleUrl: './login-page.component.css'
 })
 export class LoginPageComponent {
-  constructor (public dialog: MatDialog) { }
+  constructor (public dialog: MatDialog,
+    private client: ClientServiceService) { }
 
   username: string = ""
   password: string = ""
 
   logar()
   {
-    
+    this.client.login({
+      login: this.username,
+      password: this.password
+    })
   }
 
   registrar()
