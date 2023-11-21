@@ -42,3 +42,12 @@
     </mat-card-content>
     
 </mat-card>
+
+<input 
+    type="file" #file 
+    placeholder="Choose file" 
+    (change)="uploadFile(file.files)" 
+    style="display:none;">
+<button 
+    mat-raised-button color="primary" 
+    (click)="file.click()">Carregar imagem</button>

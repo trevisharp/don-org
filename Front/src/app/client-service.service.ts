@@ -14,9 +14,15 @@ export class ClientServiceService {
       .subscribe(response => console.log(response))
   }
 
-  login(data: ClientData)
+  login(data: ClientData, callback: any)
   {
     this.http.post('user/login', data)
-      .subscribe(response => console.log(response))
+      .subscribe(
+        response => {
+          callback(response)
+        },
+        error => { 
+          callback(null)
+        })
   }
 }

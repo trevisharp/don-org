@@ -8,6 +8,7 @@ import { FormsModule } from '@angular/forms';
 import {MatInputModule} from '@angular/material/input';
 import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { ClientServiceService } from '../client-service.service';
+import { HttpClient } from '@angular/common/http';
 
 
 @Component({
@@ -21,7 +22,8 @@ import { ClientServiceService } from '../client-service.service';
 })
 export class LoginPageComponent {
   constructor (public dialog: MatDialog,
-    private client: ClientServiceService) { }
+    private client: ClientServiceService,
+    private http: HttpClient) { }
 
   username: string = ""
   password: string = ""
@@ -31,12 +33,38 @@ export class LoginPageComponent {
     this.client.login({
       login: this.username,
       password: this.password
+    }, (result: any) => {
+      if (result == null)
+      {
+        alert('Senha ou usuário incorreto!')
+      }
+      else
+      {
+        sessionStorage.setItem('jwt', JSON.stringify(result))
+      }
     })
   }
 
   registrar()
   {
     this.dialog.open(NewUserDialog);
+  }
+
+  uploadFile = (files: any) => {
+    if (files.length === 0) {
+      return;
+    }
+    let fileToUpload = <File>files[0];
+    const formData = new FormData();
+    formData.append('file', fileToUpload, fileToUpload.name);
+
+    var jwt = sessionStorage.getItem('jwt');
+    if (jwt == null)
+      return
+    formData.append('jwt', jwt)
+     
+    this.http.put('https://localhost:7122/user/image', formData)
+      .subscribe(result => console.log("ok!"));
   }
 }
 

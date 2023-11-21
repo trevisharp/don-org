@@ -1,4 +1,7 @@
 using System;
+using System.IO;
+using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Cors;
@@ -7,6 +10,7 @@ using System.Collections.Generic;
 namespace DonOrgBack.Controllers;
 
 using DTO;
+using Model;
 using Services;
 
 [ApiController]
@@ -20,20 +24,25 @@ public class UserController : ControllerBase
         [FromServices]IUserService service,
         [FromServices]ISecurityService security)
     {
-        var loginUser = await service
+        var loggedUser = await service
             .GetByLogin(user.Login);
         
-        if (loginUser == null)
+        if (loggedUser == null)
             return Unauthorized("Usuário não existe.");
         
         var password = await security.HashPassword(
-            user.Password, loginUser.Salt
+            user.Password, loggedUser.Salt
         );
-        var realPassword = loginUser.Senha;
+        var realPassword = loggedUser.Senha;
         if (password != realPassword)
             return Unauthorized("Senha incorreta.");
         
-        return Ok();
+        var jwt = await security.GenerateJwt(new {
+            id = loggedUser.Id,
+            photoId = loggedUser.ImagemId
+        });
+        
+        return Ok(new { jwt });
     }
 
     [HttpPost("register")]
@@ -69,11 +78,53 @@ public class UserController : ControllerBase
         throw new NotImplementedException();
     }
 
+    [DisableRequestSizeLimit]
     [HttpPut("image")]
     [EnableCors("DefaultPolicy")]
-    public IActionResult AddImage()
+    public async Task<IActionResult> AddImage(
+        [FromServices]ISecurityService security
+    )
     {
-        throw new NotImplementedException();
+        var jwtData = Request.Form["jwt"];
+        var jwtObj = JsonSerializer
+            .Deserialize<JwtToken>(jwtData);
+        var jwt = jwtObj.jwt;
+
+        var userOjb = await security
+            .ValidateJwt<JwtPayload>(jwt);
+        if (userOjb is null)
+            return Unauthorized();
+        var userId = userOjb.id;
+
+        var files = Request.Form.Files;
+        if (files is null || files.Count == 0)
+            return BadRequest();
+        
+        var file = Request.Form.Files[0];
+        if (file.Length < 1)
+            return BadRequest();
+ 
+        using MemoryStream ms = new MemoryStream();
+        await file.CopyToAsync(ms);
+        var data = ms.GetBuffer();
+
+        Imagem img = new Imagem();
+        img.Foto = data;
+
+        DonOrgDbContext ctx = new DonOrgDbContext();
+        ctx.Add(img);
+        await ctx.SaveChangesAsync();
+        
+        var query =
+            from user in ctx.Usuarios
+            where user.Id == userId
+            select user;
+        var loggedUser = query.FirstOrDefault();
+        loggedUser.ImagemId = img.Id;
+
+        await ctx.SaveChangesAsync();
+
+        return Ok();
     }
 
     [HttpDelete("image")]

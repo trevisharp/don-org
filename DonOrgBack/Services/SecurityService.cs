@@ -1,5 +1,7 @@
 using System;
+using System.IO;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using System.Security.Cryptography;
 
@@ -25,14 +27,113 @@ public class SecurityService : ISecurityService
         return hash;
     }
 
-    public Task<string> GenerateJwt<T>(T obj)
+    public async Task<string> GenerateJwt<T>(T obj)
     {
-        throw new NotImplementedException();
+        string password = await getPassword();
+        var base64Password = toBase64(password);
+        var jwt = getJwt(obj, base64Password);
+        return jwt;
     }
 
-    public Task<T> ValidateJwt<T>(string jwt)
+    public async Task<T> ValidateJwt<T>(string jwt)
     {
-        throw new NotImplementedException();
+        var data = jwt.Split('.');
+
+        var header = data[0];
+        var payload = data[1];
+        var signature = data[2];
+        var password = await getPassword();
+
+        var generatedSignature = getSignature(header, payload, password);
+        if (generatedSignature != signature)
+        {
+            return default(T);
+        }
+
+        Console.WriteLine(payload);
+        var payloadBytes = Convert.FromBase64String(payload);
+        var payloadJson = Encoding.UTF8.GetString(payloadBytes);
+        Console.WriteLine(payloadJson);
+        var obj = JsonSerializer.Deserialize<T>(payloadJson);
+        return obj;
+    }
+
+    private async Task<string> getPassword()
+    {
+        var dotEnvPath = Path.Combine(
+            Environment.CurrentDirectory,
+            ".env"
+        );
+        var lines = await File.ReadAllLinesAsync(dotEnvPath);
+        foreach (var line in lines)
+        {
+            var data = line.Split('=');
+            if (data[0] != "PASSWORD")
+                continue;
+            
+            return data[1];
+        }
+        throw new Exception(
+            "É necessário um .env com uma PASSWORD para executar está operação."
+        );
+    }
+
+    private string getJwt<T>(T obj, string password)
+    {
+        var header = getJsonHeader();
+        var headerBase64 = toBase64(header);
+
+        var payload = getJsonPayload(obj);
+        var payloadBase64 = toBase64(payload);
+
+        var signature = getSignature(headerBase64, payloadBase64, password);
+
+        return $"{headerBase64}.{payloadBase64}.{signature}";
+    }
+
+    private string getJsonHeader()
+    {
+        var headerObj = new {
+            alg = "HS256",
+            typ = "JWT"
+        };
+        var json = JsonSerializer
+            .Serialize(headerObj);
+        return json;
+    }
+
+    private string getJsonPayload<T>(T obj)
+    {
+        string json = JsonSerializer.Serialize(obj);
+        return json;
+    }
+
+    private string getSignature(
+        string header,
+        string payload,
+        string password)
+    {
+        var passwordBytes = Convert
+            .FromBase64String(toBase64(password));
+        
+        var content = $"{header}.{payload}";
+        var contentBytes = Encoding
+            .UTF8.GetBytes(content);
+
+        using var algorithm = new HMACSHA256(passwordBytes);
+        var signatureBytes = algorithm.ComputeHash(contentBytes);
+        var signature = Convert.ToBase64String(signatureBytes);
+        signature = signature.Replace("=", "");
+
+        return signature;
+    }
+
+    private string toBase64(string text)
+    {
+        var bytes = Encoding.UTF8.GetBytes(text);
+        var base64 = Convert.ToBase64String(bytes);
+        var base64withoutPadding = base64.Replace("=", "");
+        return base64withoutPadding;
     }
 
     private byte[] getRandomArray()
