@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Cors;
 using System.Collections.Generic;
+using Microsoft.EntityFrameworkCore;
 
 namespace DonOrgBack.Controllers;
 
@@ -73,9 +74,21 @@ public class UserController : ControllerBase
 
     [HttpGet("image")]
     [EnableCors("DefaultPolicy")]
-    public IActionResult GetImage()
+    public async Task<IActionResult> GetImage(
+        int photoId,
+        [FromServices]ISecurityService security,
+        [FromServices]DonOrgDbContext ctx)
     {
-        throw new NotImplementedException();
+        var query =
+            from image in ctx.Imagems
+            where image.Id == photoId
+            select image;
+        
+        var photo = await query.FirstOrDefaultAsync();
+        if (photo is null)
+            return NotFound();
+
+        return File(photo.Foto, "image/jpeg");
     }
 
     [DisableRequestSizeLimit]

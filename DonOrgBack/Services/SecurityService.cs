@@ -43,8 +43,9 @@ public class SecurityService : ISecurityService
         var payload = data[1];
         var signature = data[2];
         var password = await getPassword();
+        var base64Password = toBase64(password);
 
-        var generatedSignature = getSignature(header, payload, password);
+        var generatedSignature = getSignature(header, payload, base64Password);
         if (generatedSignature != signature)
         {
             return default(T);
